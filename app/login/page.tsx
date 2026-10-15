@@ -55,16 +55,26 @@ export default function AuthPage() {
         router.refresh();
       }
     } else {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
       if (error) {
         setError(error.message);
-      } else if (!data.session) {
-        setInfo(
-          "Akun sudah dibuat. Cek email kamu untuk konfirmasi, lalu masuk.",
-        );
       } else {
-        router.push("/dashboard");
-        router.refresh();
+        if (data.session) {
+          await supabase.auth.signOut();
+        }
+
+        setIsLogin(true);
+        setPassword("");
+
+        setInfo(
+          data.session
+            ? "Akun berhasil dibuat. Silakan masuk dengan akunmu."
+            : "Akun berhasil dibuat. Cek email untuk konfirmasi, lalu masuk.",
+        );
       }
     }
     setLoading(false);

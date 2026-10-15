@@ -104,10 +104,22 @@ export default async function DashboardPage() {
       category_id: t.category_id as string | null,
       excluded: EXCLUDED_FROM_AVG.includes(catName.get(t.category_id) ?? ""),
     }));
+  const todayExpenses = expenses
+    .filter((e) => e.occurred_on === today)
+    .reduce((total, e) => total + e.amount, 0);
+
+  const todayIncome = (cycleRes.data ?? [])
+    .filter((t) => t.type === "income" && t.occurred_on === today)
+    .reduce((total, t) => total + Number(t.amount), 0);
+
+  const currentBalance = Number(balanceRes.data?.balance ?? 0);
+
+  // Rekonstruksi saldo sebelum transaksi hari ini
+  const balanceAtStartOfToday = currentBalance + todayExpenses - todayIncome;
 
   const summary = computeSummary({
     today,
-    balance: Number(balanceRes.data?.balance ?? 0),
+    balance: balanceAtStartOfToday,
     plan: { last: cycleStart, next: plan.next_income_date },
     bills: (billsRes.data ?? []).map((b) => ({
       ...b,
@@ -145,7 +157,7 @@ export default async function DashboardPage() {
   const data: DashboardData = {
     name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
     balance: Number(balanceRes.data?.balance ?? 0),
-    safePerDay: summary.safePerDay,
+    safePerDay: Math.max(summary.safePerDay - todayExpenses, 0),
     cycleDay: summary.cycleDay,
     cycleTotalDays: summary.cycleTotalDays,
     daysLeft: summary.daysLeft,
