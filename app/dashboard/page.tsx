@@ -156,6 +156,7 @@ export default async function DashboardPage() {
   const rawName: string = profile.display_name ?? "kamu";
   const data: DashboardData = {
     name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
+    categoryPeriodLabel: `${shortDate(cycleStart)} – ${shortDate(today)}`,
     balance: Number(balanceRes.data?.balance ?? 0),
     safePerDay: Math.max(summary.safePerDay - todayExpenses, 0),
     cycleDay: summary.cycleDay,

@@ -18,13 +18,13 @@ import CategoryIcon from "@/components/CategoryIcon";
 
 export type DashboardData = {
   name: string;
+  categoryPeriodLabel: string;
   balance: number;
   safePerDay: number;
   cycleDay: number; // hari ke-berapa di siklus berjalan
   cycleTotalDays: number;
   daysLeft: number;
   nextIncomeLabel: string; // contoh: "6 Okt"
-  cyclePeriodLabel?: string; // Tambahan: misal "15 Oktober – sekarang" atau "15 Okt - 5 Nov"
   spentThisCycle: number;
   avgDaily: number;
   warning: { level: "ok" | "caution" | "danger"; message: string };
@@ -259,15 +259,13 @@ export default function DashboardView({ data }: { data: DashboardData }) {
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Per kategori */}
         <section className={`${card} p-5`} aria-labelledby="kategori-title">
-          <div>
-            <h2 id="kategori-title" className="text-base font-bold">
-              Pengeluaran per kategori
-            </h2>
-            {/* Informasi Periode Siklus */}
-            <p className="text-xs text-neutral-500 mt-0.5">
-              Periode {data.cyclePeriodLabel || "siklus aktif"}
-            </p>
-          </div>
+          <h2 id="kategori-title" className="text-base font-bold">
+            Pengeluaran per kategori
+          </h2>
+
+          <p className="mt-1 text-xs text-neutral-500">
+            Periode {data.categoryPeriodLabel}
+          </p>
 
           {data.categories.length === 0 ? (
             <div className="mt-4 flex flex-col items-center rounded-xl bg-green-50 px-4 py-8 text-center">
