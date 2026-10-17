@@ -1,4 +1,5 @@
 import Link from "next/link";
+import EditNextIncome from "@/components/EditnextIncome";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -21,6 +22,9 @@ export type DashboardData = {
   categoryPeriodLabel: string;
   balance: number;
   safePerDay: number;
+  planId: string;
+  nextIncomeDate: string;
+  cycleStart: string;
   cycleDay: number; // hari ke-berapa di siklus berjalan
   cycleTotalDays: number;
   daysLeft: number;
@@ -255,6 +259,12 @@ export default function DashboardView({ data }: { data: DashboardData }) {
           hint={data.daysLeft > 0 ? `${data.daysLeft} hari lagi` : "Hari ini"}
         />
       </section>
+      {/* Pengaturan estimasi kiriman berikutnya */}
+      <EditNextIncome
+        planId={data.planId}
+        currentDate={data.nextIncomeDate}
+        cycleStart={data.cycleStart}
+      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Per kategori */}

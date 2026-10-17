@@ -27,7 +27,7 @@ export default async function DashboardPage() {
       .maybeSingle(),
     supabase
       .from("income_plans")
-      .select("last_income_date, next_income_date")
+      .select("id, last_income_date, next_income_date")
       .eq("user_id", user.id)
       .eq("is_active", true)
       .maybeSingle(),
@@ -155,6 +155,9 @@ export default async function DashboardPage() {
 
   const rawName: string = profile.display_name ?? "kamu";
   const data: DashboardData = {
+    planId: plan.id,
+    nextIncomeDate: plan.next_income_date,
+    cycleStart: cycleStart,
     name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
     categoryPeriodLabel: `${shortDate(cycleStart)} – ${shortDate(today)}`,
     balance: Number(balanceRes.data?.balance ?? 0),
