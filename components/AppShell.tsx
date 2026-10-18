@@ -1,30 +1,56 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { House, LogOut, Plus, ReceiptText, Wallet, type LucideIcon } from 'lucide-react'
-import { createClient } from '@/utils/supabase/client'
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  House,
+  LogOut,
+  Plus,
+  ReceiptText,
+  CalendarClock,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
 
 // Halaman form (catat/ubah) tampil fokus: tanpa menu bawah di HP.
-const isForm = (p: string) => p.startsWith('/transactions/new') || /\/edit$/.test(p)
+const isForm = (p: string) =>
+  p.startsWith("/transactions/new") || /\/edit$/.test(p);
 
-type Item = { href: string; label: string; Icon: LucideIcon; match: (p: string) => boolean }
+type Item = {
+  href: string;
+  label: string;
+  Icon: LucideIcon;
+  match: (p: string) => boolean;
+};
 
 // Menambah menu baru cukup menambah satu baris di sini.
 const LEFT: Item[] = [
-  { href: '/dashboard', label: 'Beranda', Icon: House, match: (p) => p.startsWith('/dashboard') },
-]
+  {
+    href: "/dashboard",
+    label: "Beranda",
+    Icon: House,
+    match: (p) => p.startsWith("/dashboard"),
+  },
+];
 const RIGHT: Item[] = [
   {
-    href: '/transactions',
-    label: 'Transaksi',
+    href: "/transactions",
+    label: "Transaksi",
     Icon: ReceiptText,
-    match: (p) => p.startsWith('/transactions') && !isForm(p),
+    match: (p) => p.startsWith("/transactions") && !isForm(p),
   },
-]
+
+  {
+    href: "/bills",
+    label: "Tagihan",
+    Icon: CalendarClock,
+    match: (p) => p.startsWith("/bills"),
+  },
+];
 
 const focus =
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700'
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700";
 
 function Logo() {
   return (
@@ -34,35 +60,35 @@ function Logo() {
       </span>
       <span className="text-lg font-bold tracking-tight">KosFinance</span>
     </span>
-  )
+  );
 }
 
 function Tab({ item, active }: { item: Item; active: boolean }) {
   return (
     <Link
       href={item.href}
-      aria-current={active ? 'page' : undefined}
+      aria-current={active ? "page" : undefined}
       className={`flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium ${focus} ${
-        active ? 'text-green-700' : 'text-neutral-600'
+        active ? "text-green-700" : "text-neutral-600"
       }`}
     >
       <item.Icon size={22} strokeWidth={active ? 2.4 : 2} />
       {item.label}
     </Link>
-  )
+  );
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
-  const focusMode = isForm(pathname)
+  const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+  const focusMode = isForm(pathname);
 
   const logout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <div className="min-h-screen text-neutral-900 md:pl-64">
@@ -74,20 +100,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <nav aria-label="Menu utama" className="mt-8 space-y-1">
           {[...LEFT, ...RIGHT].map((item) => {
-            const active = item.match(pathname)
+            const active = item.match(pathname);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                aria-current={active ? 'page' : undefined}
+                aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium ${focus} ${
-                  active ? 'bg-green-50 text-green-800' : 'text-neutral-700 hover:bg-neutral-50'
+                  active
+                    ? "bg-green-50 text-green-800"
+                    : "text-neutral-700 hover:bg-neutral-50"
                 }`}
               >
                 <item.Icon size={20} />
                 {item.label}
               </Link>
-            )
+            );
           })}
         </nav>
 
@@ -147,7 +175,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Plus size={28} />
               </Link>
-              <span className="mt-1 text-xs font-medium text-neutral-600">Catat</span>
+              <span className="mt-1 text-xs font-medium text-neutral-600">
+                Catat
+              </span>
             </div>
 
             {RIGHT.map((item) => (
@@ -157,5 +187,5 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       )}
     </div>
-  )
+  );
 }
