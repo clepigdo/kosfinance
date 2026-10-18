@@ -448,6 +448,18 @@ export default function DashboardView({ data }: { data: DashboardData }) {
           tile="bg-green-100 text-green-700"
           label="Saldo sekarang"
           value={rupiah(data.balance)}
+          action={
+            <Link
+              href="/transactions/new"
+              className="inline-flex items-center gap-1.5 rounded-xl
+        border border-green-200 px-3 py-2 text-xs
+        font-semibold text-green-700 transition
+        hover:bg-green-50"
+            >
+              <Pencil size={14} />
+              Koreksi
+            </Link>
+          }
         />
         <Stat
           Icon={TrendingDown}
