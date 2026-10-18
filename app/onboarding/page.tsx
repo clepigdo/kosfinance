@@ -7,6 +7,8 @@ import {
   Banknote,
   House,
   Wallet,
+  Plus,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -67,34 +69,90 @@ function RpInput({
   placeholder: string;
   required?: boolean;
 }) {
+  const formatRupiah = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+
+    if (!digits) return "";
+
+    return Number(digits).toLocaleString("id-ID");
+  };
+
+  const handleChange = (input: string) => {
+    const digits = input.replace(/\D/g, "");
+    onChange(digits);
+  };
+
   return (
     <div className="relative mt-1.5">
       <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-neutral-500">
         Rp
       </span>
+
       <input
         id={id}
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={0}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        pattern="[0-9.]*"
+        value={formatRupiah(value)}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder={formatRupiah(placeholder)}
         required={required}
+        autoComplete="off"
         className="w-full rounded-xl border border-neutral-300 bg-white py-3 pl-10 pr-3.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700"
       />
     </div>
   );
 }
 
+type BillInput = {
+  id: string;
+  name: string;
+  amount: string;
+  frequency: "monthly" | "weekly";
+  dueDay: string;
+  dueWeekday: string;
+};
+
+const newBill = (): BillInput => ({
+  id: crypto.randomUUID(),
+  name: "",
+  amount: "",
+  frequency: "monthly",
+  dueDay: "1",
+  dueWeekday: "1",
+});
+
 export default function OnboardingPage() {
   const [balance, setBalance] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [frequency, setFrequency] = useState("monthly");
   const [nextIncome, setNextIncome] = useState("");
-  const [billName, setBillName] = useState("Sewa kos");
-  const [billAmount, setBillAmount] = useState("");
-  const [billDay, setBillDay] = useState("1");
+
+  const [bills, setBills] = useState<BillInput[]>([
+    {
+      id: "initial-bill",
+      name: "Sewa kos",
+      amount: "",
+      frequency: "monthly",
+      dueDay: "1",
+      dueWeekday: "1",
+    },
+  ]);
+
+  const addBill = () => {
+    setBills((current) => [...current, newBill()]);
+  };
+
+  const updateBill = (id: string, changes: Partial<BillInput>) => {
+    setBills((current) =>
+      current.map((bill) => (bill.id === id ? { ...bill, ...changes } : bill)),
+    );
+  };
+
+  const removeBill = (id: string) => {
+    setBills((current) => current.filter((bill) => bill.id !== id));
+  };
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -113,6 +171,35 @@ export default function OnboardingPage() {
     const todayISO = toISO(new Date());
     if (nextIncome <= todayISO) {
       return setError("Tanggal kiriman berikutnya harus setelah hari ini.");
+    }
+
+    const preparedBills = [];
+
+    for (const bill of bills) {
+      // Baris kosong boleh dilewati.
+      if (!bill.name.trim() && !bill.amount.trim()) continue;
+
+      const amount = Number(bill.amount);
+
+      if (
+        !bill.name.trim() ||
+        !bill.amount.trim() ||
+        !Number.isSafeInteger(amount) ||
+        amount <= 0
+      ) {
+        return setError(
+          "Setiap tagihan harus memiliki nama dan nominal yang valid.",
+        );
+      }
+
+      preparedBills.push({
+        name: bill.name.trim(),
+        amount,
+        frequency: bill.frequency,
+        due_day: bill.frequency === "monthly" ? Number(bill.dueDay) : null,
+        due_weekday:
+          bill.frequency === "weekly" ? Number(bill.dueWeekday) : null,
+      });
     }
 
     setLoading(true);
@@ -147,15 +234,20 @@ export default function OnboardingPage() {
 
     // 3. Tagihan tetap (opsional)
     await supabase.from("fixed_bills").delete().eq("user_id", user.id);
-    if (Number(billAmount) > 0) {
-      const bill = await supabase.from("fixed_bills").insert({
-        user_id: user.id,
-        name: billName.trim() || "Tagihan",
-        amount: Number(billAmount),
-        frequency: "monthly",
-        due_day: Number(billDay),
-      });
-      if (bill.error) return fail(bill.error.message);
+
+    // Simpan seluruh tagihan yang diisi.
+    // Jangan menghapus baris tagihan lama di sini.
+    if (preparedBills.length > 0) {
+      const { error: billsError } = await supabase.from("fixed_bills").insert(
+        preparedBills.map((bill) => ({
+          ...bill,
+          user_id: user.id,
+        })),
+      );
+
+      if (billsError) {
+        return fail(billsError.message);
+      }
     }
 
     // 4. Tandai selesai
@@ -269,51 +361,146 @@ export default function OnboardingPage() {
           <Section
             Icon={House}
             tile="bg-violet-100 text-violet-700"
-            title="Tagihan tetap bulanan"
-            hint="Opsional. Kosongkan nominal kalau belum mau diisi."
+            title="Tagihan rutin"
+            hint="Tambahkan tagihan wajibmu. Bagian ini opsional."
           >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label htmlFor="billName" className={labelClass}>
-                  Nama
-                </label>
-                <input
-                  id="billName"
-                  type="text"
-                  value={billName}
-                  onChange={(e) => setBillName(e.target.value)}
-                  className={inputClass}
-                />
+            {bills.map((bill, index) => (
+              <div
+                key={bill.id}
+                className="space-y-4 rounded-xl border border-neutral-200 p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Tagihan {index + 1}</h3>
+
+                  <button
+                    type="button"
+                    onClick={() => removeBill(bill.id)}
+                    className="flex items-center gap-1 text-xs text-rose-700"
+                    aria-label={`Hapus tagihan ${index + 1}`}
+                  >
+                    <Trash2 size={15} />
+                    Hapus
+                  </button>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor={`bill-name-${bill.id}`}
+                    className={labelClass}
+                  >
+                    Nama tagihan
+                  </label>
+                  <input
+                    id={`bill-name-${bill.id}`}
+                    className={inputClass}
+                    placeholder="Contoh: Sewa kos"
+                    value={bill.name}
+                    onChange={(e) =>
+                      updateBill(bill.id, { name: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor={`bill-amount-${bill.id}`}
+                    className={labelClass}
+                  >
+                    Nominal
+                  </label>
+                  <RpInput
+                    id={`bill-amount-${bill.id}`}
+                    value={bill.amount}
+                    onChange={(value) => updateBill(bill.id, { amount: value })}
+                    placeholder="800000"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor={`bill-frequency-${bill.id}`}
+                      className={labelClass}
+                    >
+                      Frekuensi
+                    </label>
+                    <select
+                      id={`bill-frequency-${bill.id}`}
+                      className={inputClass}
+                      value={bill.frequency}
+                      onChange={(e) =>
+                        updateBill(bill.id, {
+                          frequency: e.target.value as BillInput["frequency"],
+                        })
+                      }
+                    >
+                      <option value="monthly">Setiap bulan</option>
+                      <option value="weekly">Setiap minggu</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor={`bill-due-${bill.id}`}
+                      className={labelClass}
+                    >
+                      Jatuh tempo
+                    </label>
+
+                    {bill.frequency === "monthly" ? (
+                      <select
+                        id={`bill-due-${bill.id}`}
+                        className={inputClass}
+                        value={bill.dueDay}
+                        onChange={(e) =>
+                          updateBill(bill.id, { dueDay: e.target.value })
+                        }
+                      >
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                          (day) => (
+                            <option key={day} value={day}>
+                              Tanggal {day}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    ) : (
+                      <select
+                        id={`bill-due-${bill.id}`}
+                        className={inputClass}
+                        value={bill.dueWeekday}
+                        onChange={(e) =>
+                          updateBill(bill.id, { dueWeekday: e.target.value })
+                        }
+                      >
+                        {[
+                          "Minggu",
+                          "Senin",
+                          "Selasa",
+                          "Rabu",
+                          "Kamis",
+                          "Jumat",
+                          "Sabtu",
+                        ].map((day, index) => (
+                          <option key={day} value={index}>
+                            {day}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div>
-                <label htmlFor="billAmount" className={labelClass}>
-                  Nominal
-                </label>
-                <RpInput
-                  id="billAmount"
-                  value={billAmount}
-                  onChange={setBillAmount}
-                  placeholder="800000"
-                />
-              </div>
-              <div>
-                <label htmlFor="billDay" className={labelClass}>
-                  Jatuh tempo
-                </label>
-                <select
-                  id="billDay"
-                  value={billDay}
-                  onChange={(e) => setBillDay(e.target.value)}
-                  className={inputClass}
-                >
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                    <option key={d} value={d}>
-                      Tanggal {d}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addBill}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-green-500 px-4 py-3 text-sm font-semibold text-green-700 hover:bg-green-50"
+            >
+              <Plus size={18} />
+              Tambah tagihan
+            </button>
           </Section>
 
           {error && (
