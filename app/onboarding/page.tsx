@@ -104,22 +104,27 @@ function RpInput({
   );
 }
 
+type ScheduleType = "once" | "limited" | "ongoing";
+type BillFrequency = "monthly" | "weekly";
+
 type BillInput = {
   id: string;
   name: string;
   amount: string;
-  frequency: "monthly" | "weekly";
-  dueDay: string;
-  dueWeekday: string;
+  scheduleType: ScheduleType;
+  frequency: BillFrequency;
+  startDate: string;
+  totalOccurrences: string;
 };
 
 const newBill = (): BillInput => ({
   id: crypto.randomUUID(),
   name: "",
   amount: "",
+  scheduleType: "once",
   frequency: "monthly",
-  dueDay: "1",
-  dueWeekday: "1",
+  startDate: "",
+  totalOccurrences: "2",
 });
 
 export default function OnboardingPage() {
@@ -131,11 +136,12 @@ export default function OnboardingPage() {
   const [bills, setBills] = useState<BillInput[]>([
     {
       id: "initial-bill",
-      name: "Sewa kos",
+      name: "",
       amount: "",
+      scheduleType: "once",
       frequency: "monthly",
-      dueDay: "1",
-      dueWeekday: "1",
+      startDate: "",
+      totalOccurrences: "2",
     },
   ]);
 
@@ -176,6 +182,59 @@ export default function OnboardingPage() {
     const preparedBills = [];
 
     for (const bill of bills) {
+      // Tagihan kosong dilewati.
+      if (!bill.name.trim() && !bill.amount.trim() && !bill.startDate) {
+        continue;
+      }
+
+      const amount = Number(bill.amount);
+      const count = Number(bill.totalOccurrences);
+
+      if (
+        !bill.name.trim() ||
+        !bill.amount.trim() ||
+        !Number.isSafeInteger(amount) ||
+        amount <= 0
+      ) {
+        return setError(
+          "Setiap tagihan harus memiliki nama dan nominal yang valid.",
+        );
+      }
+
+      // Validasi tanggal YYYY-MM-DD yang benar-benar ada.
+      const date = bill.startDate;
+      const dateObject = new Date(`${date}T00:00:00Z`);
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+        Number.isNaN(dateObject.getTime()) ||
+        dateObject.toISOString().slice(0, 10) !== date
+      ) {
+        return setError(`Tanggal jatuh tempo ${bill.name} belum valid.`);
+      }
+
+      if (
+        bill.scheduleType === "limited" &&
+        (!Number.isInteger(count) || count < 1 || count > 120)
+      ) {
+        return setError(`Jumlah pembayaran ${bill.name} harus 1–120 kali.`);
+      }
+
+      const weekday = dateObject.getUTCDay();
+
+      preparedBills.push({
+        name: bill.name.trim(),
+        amount,
+        schedule_type: bill.scheduleType,
+        start_date: date,
+        total_occurrences: bill.scheduleType === "limited" ? count : null,
+        frequency: bill.frequency,
+        due_day: Number(date.slice(8, 10)),
+        due_weekday: weekday,
+      });
+    }
+
+    for (const bill of bills) {
       // Baris kosong boleh dilewati.
       if (!bill.name.trim() && !bill.amount.trim()) continue;
 
@@ -192,13 +251,20 @@ export default function OnboardingPage() {
         );
       }
 
+      const dateObject = new Date(`${bill.startDate}T00:00:00Z`);
+
       preparedBills.push({
         name: bill.name.trim(),
         amount,
         frequency: bill.frequency,
-        due_day: bill.frequency === "monthly" ? Number(bill.dueDay) : null,
-        due_weekday:
-          bill.frequency === "weekly" ? Number(bill.dueWeekday) : null,
+        schedule_type: bill.scheduleType,
+        start_date: bill.startDate,
+        total_occurrences:
+          bill.scheduleType === "limited"
+            ? Number(bill.totalOccurrences)
+            : null,
+        due_day: Number(bill.startDate.slice(8, 10)),
+        due_weekday: dateObject.getUTCDay(),
       });
     }
 
@@ -416,79 +482,117 @@ export default function OnboardingPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-4">
                   <div>
                     <label
-                      htmlFor={`bill-frequency-${bill.id}`}
+                      htmlFor={`bill-type-${bill.id}`}
                       className={labelClass}
                     >
-                      Frekuensi
+                      Jenis tagihan
                     </label>
+
                     <select
-                      id={`bill-frequency-${bill.id}`}
+                      id={`bill-type-${bill.id}`}
                       className={inputClass}
-                      value={bill.frequency}
+                      value={bill.scheduleType}
                       onChange={(e) =>
                         updateBill(bill.id, {
-                          frequency: e.target.value as BillInput["frequency"],
+                          scheduleType: e.target.value as ScheduleType,
                         })
                       }
                     >
-                      <option value="monthly">Setiap bulan</option>
-                      <option value="weekly">Setiap minggu</option>
+                      <option value="once">Sekali bayar</option>
+                      <option value="limited">Berulang dengan batas</option>
+                      <option value="ongoing">Rutin tanpa batas</option>
                     </select>
                   </div>
 
                   <div>
                     <label
-                      htmlFor={`bill-due-${bill.id}`}
+                      htmlFor={`bill-start-${bill.id}`}
                       className={labelClass}
                     >
-                      Jatuh tempo
+                      {bill.scheduleType === "once"
+                        ? "Tanggal jatuh tempo"
+                        : "Tanggal jatuh tempo pertama"}
                     </label>
 
-                    {bill.frequency === "monthly" ? (
-                      <select
-                        id={`bill-due-${bill.id}`}
-                        className={inputClass}
-                        value={bill.dueDay}
-                        onChange={(e) =>
-                          updateBill(bill.id, { dueDay: e.target.value })
-                        }
-                      >
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(
-                          (day) => (
-                            <option key={day} value={day}>
-                              Tanggal {day}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    ) : (
-                      <select
-                        id={`bill-due-${bill.id}`}
-                        className={inputClass}
-                        value={bill.dueWeekday}
-                        onChange={(e) =>
-                          updateBill(bill.id, { dueWeekday: e.target.value })
-                        }
-                      >
-                        {[
-                          "Minggu",
-                          "Senin",
-                          "Selasa",
-                          "Rabu",
-                          "Kamis",
-                          "Jumat",
-                          "Sabtu",
-                        ].map((day, index) => (
-                          <option key={day} value={index}>
-                            {day}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <input
+                      id={`bill-start-${bill.id}`}
+                      type="date"
+                      className={inputClass}
+                      value={bill.startDate}
+                      onChange={(e) =>
+                        updateBill(bill.id, {
+                          startDate: e.target.value,
+                        })
+                      }
+                    />
                   </div>
+
+                  {bill.scheduleType !== "once" && (
+                    <div>
+                      <label
+                        htmlFor={`bill-frequency-${bill.id}`}
+                        className={labelClass}
+                      >
+                        Frekuensi pembayaran
+                      </label>
+
+                      <select
+                        id={`bill-frequency-${bill.id}`}
+                        className={inputClass}
+                        value={bill.frequency}
+                        onChange={(e) =>
+                          updateBill(bill.id, {
+                            frequency: e.target.value as BillFrequency,
+                          })
+                        }
+                      >
+                        <option value="monthly">Setiap bulan</option>
+                        <option value="weekly">Setiap minggu</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {bill.scheduleType === "limited" && (
+                    <div>
+                      <label
+                        htmlFor={`bill-count-${bill.id}`}
+                        className={labelClass}
+                      >
+                        Jumlah pembayaran
+                      </label>
+
+                      <input
+                        id={`bill-count-${bill.id}`}
+                        type="number"
+                        min={1}
+                        max={120}
+                        step={1}
+                        className={inputClass}
+                        value={bill.totalOccurrences}
+                        onChange={(e) =>
+                          updateBill(bill.id, {
+                            totalOccurrences: e.target.value,
+                          })
+                        }
+                      />
+                      <p className={hintClass}>
+                        Contoh: isi 3 untuk tiga kali pembayaran.
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="rounded-lg bg-green-50 p-3 text-xs text-green-800">
+                    {bill.scheduleType === "once"
+                      ? "Tagihan hanya akan dijadwalkan satu kali."
+                      : bill.scheduleType === "limited"
+                        ? `Tagihan dijadwalkan ${
+                            bill.totalOccurrences || "0"
+                          } kali, lalu otomatis selesai.`
+                        : "Tagihan berulang sampai kamu menonaktifkannya."}
+                  </p>
                 </div>
               </div>
             ))}

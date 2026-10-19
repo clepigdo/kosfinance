@@ -17,7 +17,9 @@ export default async function BillsPage() {
   const [billsResult, paymentsResult] = await Promise.all([
     supabase
       .from("fixed_bills")
-      .select("id, name, amount, frequency, due_day, due_weekday")
+      .select(
+        "id, name, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences",
+      )
       .eq("user_id", user.id)
       .eq("is_active", true)
       .order("created_at"),
@@ -34,6 +36,12 @@ export default async function BillsPage() {
     return <p role="alert">Gagal memuat tagihan. Silakan coba lagi.</p>;
   }
 
+  console.log("[BILLS DEBUG]", {
+    userId: user.id,
+    bills: billsResult.data,
+    payments: paymentsResult.data,
+  });
+
   const paid = new Set(
     (paymentsResult.data ?? []).map((p) => `${p.bill_id}|${p.due_date}`),
   );
@@ -47,6 +55,9 @@ export default async function BillsPage() {
           frequency: bill.frequency,
           due_day: bill.due_day,
           due_weekday: bill.due_weekday,
+          schedule_type: bill.schedule_type,
+          start_date: bill.start_date,
+          total_occurrences: bill.total_occurrences,
         },
         today,
         end,
@@ -59,6 +70,16 @@ export default async function BillsPage() {
       })),
     )
     .sort((a, b) => a.date.localeCompare(b.date));
+
+  console.log("=== DEBUG KOSFINANCE ===");
+
+  console.log("Jumlah tagihan dari Supabase:", billsResult.data?.length);
+
+  console.log("Data tagihan:", billsResult.data);
+
+  console.log("Jumlah jadwal yang dihasilkan:", occurrences.length);
+
+  console.log("Data jadwal:", occurrences);
 
   const unpaidTotal = occurrences
     .filter((item) => !item.isPaid)
