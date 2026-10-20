@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -161,7 +161,7 @@ export default function OnboardingPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+  const submittingRef = useRef(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -170,161 +170,124 @@ export default function OnboardingPage() {
     setLoading(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError("");
 
-    const todayISO = toISO(new Date());
-    if (nextIncome <= todayISO) {
-      return setError("Tanggal kiriman berikutnya harus setelah hari ini.");
-    }
-
-    const preparedBills = [];
-
-    for (const bill of bills) {
-      // Tagihan kosong dilewati.
-      if (!bill.name.trim() && !bill.amount.trim() && !bill.startDate) {
-        continue;
-      }
-
-      const amount = Number(bill.amount);
-      const count = Number(bill.totalOccurrences);
-
-      if (
-        !bill.name.trim() ||
-        !bill.amount.trim() ||
-        !Number.isSafeInteger(amount) ||
-        amount <= 0
-      ) {
-        return setError(
-          "Setiap tagihan harus memiliki nama dan nominal yang valid.",
-        );
-      }
-
-      // Validasi tanggal YYYY-MM-DD yang benar-benar ada.
-      const date = bill.startDate;
-      const dateObject = new Date(`${date}T00:00:00Z`);
-
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-        Number.isNaN(dateObject.getTime()) ||
-        dateObject.toISOString().slice(0, 10) !== date
-      ) {
-        return setError(`Tanggal jatuh tempo ${bill.name} belum valid.`);
-      }
-
-      if (
-        bill.scheduleType === "limited" &&
-        (!Number.isInteger(count) || count < 1 || count > 120)
-      ) {
-        return setError(`Jumlah pembayaran ${bill.name} harus 1–120 kali.`);
-      }
-
-      const weekday = dateObject.getUTCDay();
-
-      preparedBills.push({
-        name: bill.name.trim(),
-        amount,
-        schedule_type: bill.scheduleType,
-        start_date: date,
-        total_occurrences: bill.scheduleType === "limited" ? count : null,
-        frequency: bill.frequency,
-        due_day: Number(date.slice(8, 10)),
-        due_weekday: weekday,
-      });
-    }
-
-    for (const bill of bills) {
-      // Baris kosong boleh dilewati.
-      if (!bill.name.trim() && !bill.amount.trim()) continue;
-
-      const amount = Number(bill.amount);
-
-      if (
-        !bill.name.trim() ||
-        !bill.amount.trim() ||
-        !Number.isSafeInteger(amount) ||
-        amount <= 0
-      ) {
-        return setError(
-          "Setiap tagihan harus memiliki nama dan nominal yang valid.",
-        );
-      }
-
-      const dateObject = new Date(`${bill.startDate}T00:00:00Z`);
-
-      preparedBills.push({
-        name: bill.name.trim(),
-        amount,
-        frequency: bill.frequency,
-        schedule_type: bill.scheduleType,
-        start_date: bill.startDate,
-        total_occurrences:
-          bill.scheduleType === "limited"
-            ? Number(bill.totalOccurrences)
-            : null,
-        due_day: Number(bill.startDate.slice(8, 10)),
-        due_weekday: dateObject.getUTCDay(),
-      });
-    }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
 
     setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    setError("");
 
-    // 1. Profil: saldo awal. onboarded baru di-true-kan di langkah terakhir.
-    const profile = await supabase.from("profiles").upsert({
-      id: user.id,
-      opening_balance: Number(balance) || 0,
-      opening_date: todayISO,
-      onboarded: false,
-    });
-    if (profile.error) return fail(profile.error.message);
+    try {
+      const today = toISO(new Date());
 
-    // 2. Rencana pemasukan (hapus dulu supaya aman kalau form dikirim ulang)
-    await supabase.from("income_plans").delete().eq("user_id", user.id);
-    const plan = await supabase.from("income_plans").insert({
-      user_id: user.id,
-      source_name: "Uang kiriman",
-      amount: Number(incomeAmount) || 0,
-      frequency,
-      last_income_date: todayISO,
-      next_income_date: nextIncome,
-    });
-    if (plan.error) return fail(plan.error.message);
+      const openingBalance = Number(balance);
+      const income = Number(incomeAmount);
 
-    // 3. Tagihan tetap (opsional)
-    await supabase.from("fixed_bills").delete().eq("user_id", user.id);
+      if (
+        !balance.trim() ||
+        !incomeAmount.trim() ||
+        !Number.isSafeInteger(openingBalance) ||
+        !Number.isSafeInteger(income) ||
+        openingBalance < 0 ||
+        income < 0
+      ) {
+        throw new Error("Saldo atau nominal kiriman tidak valid.");
+      }
 
-    // Simpan seluruh tagihan yang diisi.
-    // Jangan menghapus baris tagihan lama di sini.
-    if (preparedBills.length > 0) {
-      const { error: billsError } = await supabase.from("fixed_bills").insert(
-        preparedBills.map((bill) => ({
-          ...bill,
-          user_id: user.id,
-        })),
+      if (!nextIncome || nextIncome <= today) {
+        throw new Error("Tanggal kiriman berikutnya harus setelah hari ini.");
+      }
+
+      const preparedBills = [];
+
+      for (const bill of bills) {
+        const isEmpty =
+          !bill.name.trim() && !bill.amount.trim() && !bill.startDate;
+
+        if (isEmpty) continue;
+
+        const amount = Number(bill.amount);
+        const count = Number(bill.totalOccurrences);
+
+        if (
+          !bill.name.trim() ||
+          !bill.amount.trim() ||
+          !Number.isSafeInteger(amount) ||
+          amount <= 0
+        ) {
+          throw new Error(`Nama atau nominal tagihan tidak valid.`);
+        }
+
+        const date = bill.startDate;
+        const parsedDate = new Date(`${date}T00:00:00Z`);
+
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+          Number.isNaN(parsedDate.getTime()) ||
+          parsedDate.toISOString().slice(0, 10) !== date
+        ) {
+          throw new Error(`Tanggal jatuh tempo ${bill.name} tidak valid.`);
+        }
+
+        if (
+          bill.scheduleType === "limited" &&
+          (!Number.isInteger(count) || count < 1 || count > 120)
+        ) {
+          throw new Error(`Jumlah pembayaran ${bill.name} harus 1–120 kali.`);
+        }
+
+        preparedBills.push({
+          name: bill.name.trim(),
+          amount,
+          frequency: bill.frequency,
+          schedule_type: bill.scheduleType,
+          start_date: date,
+          total_occurrences: bill.scheduleType === "limited" ? count : null,
+        });
+      }
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (authError || !user) {
+        throw new Error("Sesi login berakhir. Silakan login kembali.");
+      }
+
+      // Semua penyimpanan dilakukan oleh satu RPC.
+      const { data, error: rpcError } = await supabase.rpc(
+        "complete_onboarding",
+        {
+          p_opening_balance: openingBalance,
+          p_income_amount: income,
+          p_frequency: frequency,
+          p_opening_date: today,
+          p_next_income_date: nextIncome,
+          p_bills: preparedBills,
+        },
       );
 
-      if (billsError) {
-        return fail(billsError.message);
+      if (rpcError) throw rpcError;
+
+      if (data !== "created" && data !== "already_complete") {
+        throw new Error("Respons penyimpanan onboarding tidak dikenal.");
       }
+
+      router.replace("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Terjadi kesalahan saat menyimpan onboarding.",
+      );
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
     }
-
-    // 4. Tandai selesai
-    const done = await supabase
-      .from("profiles")
-      .update({ onboarded: true })
-      .eq("id", user.id);
-    if (done.error) return fail(done.error.message);
-
-    router.push("/dashboard");
-    router.refresh();
   };
 
   const today = useToday();
