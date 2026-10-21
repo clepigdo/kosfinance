@@ -7,6 +7,7 @@ import {
   todayISO,
   type Bill,
 } from "@/lib/finance";
+import PayBillButton from "@/components/PayBillButton";
 
 type ScheduleType = "once" | "limited" | "ongoing";
 
@@ -19,6 +20,7 @@ type BillRow = Bill & {
 
 type Occurrence = {
   id: string;
+  billId: string;
   name: string;
   amount: number;
   date: string;
@@ -34,7 +36,7 @@ function addMonths(iso: string, count: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function getDates(bill: BillRow, today: string, monthStart: string): string[] {
+function getDates(bill: BillRow, monthStart: string): string[] {
   if (bill.schedule_type === "once") {
     return bill.start_date ? [bill.start_date] : [];
   }
@@ -44,7 +46,6 @@ function getDates(bill: BillRow, today: string, monthStart: string): string[] {
       return [];
     }
 
-    // Rentang cukup untuk seluruh cicilan, maksimal 120.
     const end = addDays(
       bill.start_date,
       bill.total_occurrences * (bill.frequency === "monthly" ? 32 : 7) + 8,
@@ -53,9 +54,21 @@ function getDates(bill: BillRow, today: string, monthStart: string): string[] {
     return dueDates(bill, bill.start_date, end);
   }
 
-  // Tagihan tanpa batas: tampilkan 12 bulan,
-  // dimulai dari bulan kalender saat ini.
   return dueDates(bill, monthStart, addMonths(monthStart, 12));
+}
+
+function rupiah(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function scheduleLabel(type: ScheduleType) {
+  if (type === "once") return "Sekali bayar";
+  if (type === "limited") return "Cicilan";
+  return "Rutin";
 }
 
 export default async function BillsPage() {
@@ -81,8 +94,6 @@ export default async function BillsPage() {
       .eq("is_active", true)
       .order("created_at"),
 
-    // Ambil riwayat pembayaran agar status cicilan
-    // masa lalu dan masa depan terbaca.
     supabase
       .from("bill_payments")
       .select("bill_id, due_date")
@@ -103,10 +114,11 @@ export default async function BillsPage() {
 
   const occurrences: Occurrence[] = ((billsResult.data ?? []) as BillRow[])
     .flatMap((bill) => {
-      const dates = getDates(bill, today, monthStart);
+      const dates = getDates(bill, monthStart);
 
       return dates.map((date, index) => ({
         id: `${bill.id}|${date}`,
+        billId: bill.id,
         name: bill.name,
         amount: Number(bill.amount),
         date,
@@ -121,24 +133,33 @@ export default async function BillsPage() {
     })
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Hanya jumlahkan kewajiban bulan berjalan.
-  const monthlyUnpaid = occurrences
-    .filter(
-      (item) =>
-        !item.isPaid && item.date >= monthStart && item.date < nextMonth,
-    )
+  const dueThisMonth = occurrences.filter(
+    (item) => !item.isPaid && item.date >= monthStart && item.date < nextMonth,
+  );
+
+  const overdueItems = occurrences.filter(
+    (item) => !item.isPaid && item.date < today,
+  );
+
+  const totalThisMonth = dueThisMonth.reduce(
+    (sum, item) => sum + item.amount,
+    0,
+  );
+
+  const totalOverdue = overdueItems.reduce((sum, item) => sum + item.amount, 0);
+
+  const totalRemaining = occurrences
+    .filter((item) => !item.isPaid)
     .reduce((sum, item) => sum + item.amount, 0);
 
-  const monthlyCount = occurrences.filter(
-    (item) => !item.isPaid && item.date >= monthStart && item.date < nextMonth,
-  ).length;
+  const groups = new Map<string, Occurrence[]>();
 
-  const rupiah = (amount: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(amount);
+  for (const item of occurrences) {
+    const key = item.date.slice(0, 7);
+    const existing = groups.get(key) ?? [];
+    existing.push(item);
+    groups.set(key, existing);
+  }
 
   const monthLabel = new Date(`${monthStart}T00:00:00Z`).toLocaleDateString(
     "id-ID",
@@ -149,38 +170,136 @@ export default async function BillsPage() {
     },
   );
 
-  const groups = new Map<string, Occurrence[]>();
-
-  for (const item of occurrences) {
-    const key = item.date.slice(0, 7);
-    const group = groups.get(key) ?? [];
-    group.push(item);
-    groups.set(key, group);
-  }
-
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Tagihan & Cicilan</h1>
         <p className="mt-1 text-sm text-neutral-600">
-          Pantau kewajiban bulan ini dan jadwal pembayaran berikutnya.
+          Lihat kewajiban bulan ini, tandai yang sudah lunas, dan pantau semua
+          jadwal cicilan ke depan.
         </p>
       </div>
 
-      <section className="rounded-2xl border border-green-100 bg-white p-5">
-        <p className="text-sm text-neutral-600">
-          Belum dibayar bulan {monthLabel}
-        </p>
+      {/* Ringkasan */}
+      <section className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-green-100 bg-white p-5">
+          <p className="text-sm text-neutral-500">
+            Perlu dibayar bulan {monthLabel}
+          </p>
+          <p className="mt-2 text-3xl font-bold">{rupiah(totalThisMonth)}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {dueThisMonth.length} pembayaran belum lunas bulan ini
+          </p>
+        </div>
 
-        <p className="mt-2 text-3xl font-bold">{rupiah(monthlyUnpaid)}</p>
+        <div className="rounded-2xl border border-rose-100 bg-white p-5">
+          <p className="text-sm text-neutral-500">Tunggakan</p>
+          <p className="mt-2 text-3xl font-bold text-rose-700">
+            {rupiah(totalOverdue)}
+          </p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {overdueItems.length} pembayaran lewat jatuh tempo
+          </p>
+        </div>
 
-        <p className="mt-1 text-xs text-neutral-500">
-          {monthlyCount} pembayaran belum lunas pada bulan ini.
-        </p>
+        <div className="rounded-2xl border border-amber-100 bg-white p-5">
+          <p className="text-sm text-neutral-500">Total sisa tagihan</p>
+          <p className="mt-2 text-3xl font-bold">{rupiah(totalRemaining)}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            Semua kewajiban yang belum dibayar
+          </p>
+        </div>
       </section>
 
+      {/* Prioritas sekarang */}
       <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Semua jadwal tagihan</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Perlu dibayar sekarang</h2>
+          <p className="text-sm text-neutral-600">
+            Fokuskan dulu pada tagihan bulan ini dan yang sudah lewat jatuh
+            tempo.
+          </p>
+        </div>
+
+        {dueThisMonth.length === 0 ? (
+          <div className="rounded-2xl border border-green-100 bg-white p-6 text-sm text-neutral-600">
+            Tidak ada tagihan yang perlu dibayar pada bulan ini.
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {dueThisMonth.map((item) => {
+              const isOverdue = item.date < today;
+
+              return (
+                <div
+                  key={`due-now-${item.id}`}
+                  className="rounded-2xl border border-green-100 bg-white p-5"
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold">{item.name}</h3>
+                        <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                          {scheduleLabel(item.scheduleType)}
+                        </span>
+                        {item.installment && (
+                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                            Cicilan {item.installment}/{item.installmentTotal}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-sm text-neutral-500">
+                        Jatuh tempo: {shortDate(item.date)}
+                      </p>
+
+                      <p
+                        className={`text-xs font-medium ${
+                          item.isPaid
+                            ? "text-green-700"
+                            : isOverdue
+                              ? "text-rose-700"
+                              : "text-amber-700"
+                        }`}
+                      >
+                        {item.isPaid
+                          ? "Lunas"
+                          : isOverdue
+                            ? "Lewat jatuh tempo"
+                            : "Belum dibayar"}
+                      </p>
+                    </div>
+
+                    <div className="text-left md:text-right">
+                      <p className="text-2xl font-bold">
+                        {rupiah(item.amount)}
+                      </p>
+                      {!item.isPaid && (
+                        <PayBillButton
+                          billId={item.billId}
+                          dueDate={item.date}
+                          billName={item.name}
+                          amount={item.amount}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Semua jadwal */}
+      <section className="space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold">Semua jadwal tagihan</h2>
+          <p className="text-sm text-neutral-600">
+            Semua cicilan dan tagihan ditampilkan per bulan agar lebih mudah
+            dipantau.
+          </p>
+        </div>
 
         {occurrences.length === 0 ? (
           <div className="rounded-2xl border border-green-100 bg-white p-6 text-sm text-neutral-600">
@@ -197,63 +316,89 @@ export default async function BillsPage() {
               },
             );
 
-            const groupUnpaid = items
+            const groupTotal = items
               .filter((item) => !item.isPaid)
               .reduce((sum, item) => sum + item.amount, 0);
 
             return (
-              <div key={month} className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-semibold capitalize">{title}</h3>
-                  <span className="text-sm font-medium text-neutral-600">
-                    {rupiah(groupUnpaid)}
-                  </span>
+              <div
+                key={month}
+                className="rounded-2xl border border-green-100 bg-white p-5"
+              >
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold capitalize">{title}</h3>
+                    <p className="text-xs text-neutral-500">
+                      {items.length} jadwal pembayaran
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-neutral-500">Belum dibayar</p>
+                    <p className="font-semibold">{rupiah(groupTotal)}</p>
+                  </div>
                 </div>
 
-                {items.map((item) => {
-                  const isOverdue = !item.isPaid && item.date < today;
+                <div className="space-y-3">
+                  {items.map((item) => {
+                    const isOverdue = !item.isPaid && item.date < today;
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 rounded-2xl border border-green-100 bg-white p-4"
-                    >
-                      <div>
-                        <p className="font-semibold">{item.name}</p>
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex flex-col gap-3 rounded-xl border border-neutral-200 p-4 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold">{item.name}</p>
+                            <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                              {scheduleLabel(item.scheduleType)}
+                            </span>
+                            {item.installment && (
+                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                                Cicilan {item.installment}/
+                                {item.installmentTotal}
+                              </span>
+                            )}
+                          </div>
 
-                        <p className="text-sm text-neutral-500">
-                          {shortDate(item.date)}
-                        </p>
-
-                        {item.installment && (
-                          <p className="mt-1 text-xs text-neutral-500">
-                            Cicilan {item.installment}/{item.installmentTotal}
+                          <p className="text-sm text-neutral-500">
+                            {shortDate(item.date)}
                           </p>
-                        )}
-                      </div>
 
-                      <div className="text-right">
-                        <p className="font-semibold">{rupiah(item.amount)}</p>
-
-                        <p
-                          className={`text-xs ${
-                            item.isPaid
-                              ? "text-green-700"
+                          <p
+                            className={`text-xs font-medium ${
+                              item.isPaid
+                                ? "text-green-700"
+                                : isOverdue
+                                  ? "text-rose-700"
+                                  : "text-amber-700"
+                            }`}
+                          >
+                            {item.isPaid
+                              ? "Lunas"
                               : isOverdue
-                                ? "text-rose-700"
-                                : "text-amber-700"
-                          }`}
-                        >
-                          {item.isPaid
-                            ? "Lunas"
-                            : isOverdue
-                              ? "Lewat jatuh tempo"
-                              : "Belum dibayar"}
-                        </p>
+                                ? "Lewat jatuh tempo"
+                                : "Belum dibayar"}
+                          </p>
+                        </div>
+
+                        <div className="text-left md:text-right">
+                          <p className="text-lg font-semibold">
+                            {rupiah(item.amount)}
+                          </p>
+                          {!item.isPaid && (
+                            <PayBillButton
+                              billId={item.billId}
+                              dueDate={item.date}
+                              billName={item.name}
+                              amount={item.amount}
+                            />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             );
           })
