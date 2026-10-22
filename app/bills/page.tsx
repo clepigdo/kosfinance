@@ -16,6 +16,7 @@ type BillRow = Bill & {
   schedule_type: ScheduleType;
   start_date: string | null;
   total_occurrences: number | null;
+  other_description: string | null;
 };
 
 type Occurrence = {
@@ -26,6 +27,7 @@ type Occurrence = {
   date: string;
   isPaid: boolean;
   scheduleType: ScheduleType;
+  otherDescription: string | null
   installment?: number;
   installmentTotal?: number;
 };
@@ -88,7 +90,7 @@ export default async function BillsPage() {
     supabase
       .from("fixed_bills")
       .select(
-        "id, name, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences",
+        "id, name, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences, other_description",
       )
       .eq("user_id", user.id)
       .eq("is_active", true)
@@ -121,6 +123,7 @@ export default async function BillsPage() {
         billId: bill.id,
         name: bill.name,
         amount: Number(bill.amount),
+        otherDescription: bill.other_description,
         date,
         isPaid: paid.has(`${bill.id}|${date}`),
         scheduleType: bill.schedule_type,
@@ -239,6 +242,17 @@ export default async function BillsPage() {
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-semibold">{item.name}</h3>
+
+                        <div>
+                          <h3 className="text-lg font-semibold">{item.name}</h3>
+
+                          {item.otherDescription && (
+                            <p className="mt-1 text-xs text-neutral-500">
+                              Keterangan: {item.otherDescription}
+                            </p>
+                          )}
+                        </div>
+
                         <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                           {scheduleLabel(item.scheduleType)}
                         </span>
@@ -350,6 +364,17 @@ export default async function BillsPage() {
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold">{item.name}</p>
+
+                            <div>
+                              <p className="font-semibold">{item.name}</p>
+
+                              {item.otherDescription && (
+                                <p className="mt-1 text-xs text-neutral-500">
+                                  Keterangan: {item.otherDescription}
+                                </p>
+                              )}
+                            </div>
+
                             <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
                               {scheduleLabel(item.scheduleType)}
                             </span>

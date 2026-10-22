@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -16,7 +16,6 @@ import { addDaysISO, toISO, useToday } from "@/lib/useToday";
 
 const FREQUENCIES = [
   { value: "weekly", label: "Setiap minggu" },
-  { value: "biweekly", label: "Setiap 2 minggu" },
   { value: "monthly", label: "Setiap bulan" },
 ];
 
@@ -107,10 +106,17 @@ function RpInput({
 type ScheduleType = "once" | "limited" | "ongoing";
 type BillFrequency = "monthly" | "weekly";
 
+type ExpenseCategory = {
+  id: string;
+  name: string;
+};
+
 type BillInput = {
   id: string;
   name: string;
   amount: string;
+  categoryId: string;
+  otherDescription: string;
   scheduleType: ScheduleType;
   frequency: BillFrequency;
   startDate: string;
@@ -121,12 +127,14 @@ const newBill = (): BillInput => ({
   id: crypto.randomUUID(),
   name: "",
   amount: "",
+  categoryId: "",
+  otherDescription: "",
   scheduleType: "once",
   frequency: "monthly",
   startDate: "",
   totalOccurrences: "2",
 });
-
+const supabase = createClient();
 export default function OnboardingPage() {
   const [balance, setBalance] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
@@ -138,6 +146,8 @@ export default function OnboardingPage() {
       id: "initial-bill",
       name: "",
       amount: "",
+      categoryId: "",
+      otherDescription: "",
       scheduleType: "once",
       frequency: "monthly",
       startDate: "",
@@ -163,7 +173,66 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const submittingRef = useRef(false);
   const router = useRouter();
-  const supabase = createClient();
+
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>(
+    [],
+  );
+
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  const [categoriesError, setCategoriesError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCategories = async () => {
+      setCategoriesLoading(true);
+      setCategoriesError("");
+
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+
+      if (!active) return;
+
+      if (authError || !user) {
+        setCategoriesError("Sesi login tidak valid. Silakan login kembali.");
+        setCategoriesLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("user_id", user.id)
+        .eq("type", "expense")
+        .eq("is_archived", false)
+        .order("sort_order")
+        .order("name");
+
+      if (!active) return;
+
+      if (error) {
+        setCategoriesError(error.message);
+      } else if (!data?.length) {
+        setCategoriesError(
+          "Belum ada kategori pengeluaran. " +
+            "Silakan siapkan kategori terlebih dahulu.",
+        );
+      } else {
+        setExpenseCategories(data);
+      }
+
+      setCategoriesLoading(false);
+    };
+
+    void loadCategories();
+
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
   const fail = (msg: string) => {
     setError(msg);
@@ -238,9 +307,38 @@ export default function OnboardingPage() {
           throw new Error(`Jumlah pembayaran ${bill.name} harus 1–120 kali.`);
         }
 
+        if (
+          !bill.categoryId ||
+          !expenseCategories.some((category) => category.id === bill.categoryId)
+        ) {
+          throw new Error(
+            `Pilih kategori pengeluaran untuk tagihan "${bill.name}".`,
+          );
+        }
+
+        const selectedCategory = expenseCategories.find(
+          (category) => category.id === bill.categoryId,
+        );
+
+        const isOther =
+          selectedCategory?.name.trim().toLowerCase() === "lainnya";
+
+        const otherDescription = bill.otherDescription.trim();
+
+        if (
+          isOther &&
+          (otherDescription.length === 0 || otherDescription.length > 120)
+        ) {
+          throw new Error(
+            `Isi keterangan kategori Lainnya untuk tagihan "${bill.name}" (maksimal 120 karakter).`,
+          );
+        }
+
         preparedBills.push({
           name: bill.name.trim(),
           amount,
+          category_id: bill.categoryId,
+          other_description: isOther ? otherDescription : null,
           frequency: bill.frequency,
           schedule_type: bill.scheduleType,
           start_date: date,
@@ -352,7 +450,7 @@ export default function OnboardingPage() {
               </div>
               <div>
                 <label htmlFor="freq" className={labelClass}>
-                  Seberapa sering
+                  Frekuensi Uang Kiriman
                 </label>
                 <select
                   id="freq"
@@ -368,9 +466,13 @@ export default function OnboardingPage() {
                 </select>
               </div>
             </div>
+            <p className={hintClass}>
+              Pilih jadwal kiriman yang paling sering kamu terima. Tanggal
+              kiriman berikutnya tetap bisa diubah nanti.
+            </p>
             <div>
               <label htmlFor="next" className={labelClass}>
-                Kiriman berikutnya masuk tanggal
+                Kiriman berikutnya masuk tanggal berapa?
               </label>
               <input
                 id="next"
@@ -443,6 +545,84 @@ export default function OnboardingPage() {
                     onChange={(value) => updateBill(bill.id, { amount: value })}
                     placeholder="800000"
                   />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor={`bill-category-${bill.id}`}
+                    className={labelClass}
+                  >
+                    Kategori pengeluaran
+                  </label>
+                  <select
+                    id={`bill-category-${bill.id}`}
+                    className={inputClass}
+                    value={bill.categoryId}
+                    disabled={categoriesLoading || !!categoriesError}
+                    onChange={(e) =>
+                      updateBill(bill.id, {
+                        categoryId: e.target.value,
+                        otherDescription: "",
+                      })
+                    }
+                  >
+                    <option value="" disabled hidden>
+                      {categoriesLoading
+                        ? "Memuat kategori..."
+                        : "Pilih kategori"}
+                    </option>
+
+                    {expenseCategories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <p className={hintClass}>
+                    Saat tagihan dilunasi, pengeluaran akan dicatat menggunakan
+                    kategori ini.
+                  </p>
+                  {expenseCategories
+                    .find((category) => category.id === bill.categoryId)
+                    ?.name.trim()
+                    .toLowerCase() === "lainnya" && (
+                    <div>
+                      <label
+                        htmlFor={`bill-other-${bill.id}`}
+                        className={labelClass}
+                      >
+                        Jenis pengeluaran lainnya
+                        <span className="ml-1 text-rose-600">*</span>
+                      </label>
+
+                      <input
+                        id={`bill-other-${bill.id}`}
+                        type="text"
+                        maxLength={120}
+                        required
+                        value={bill.otherDescription}
+                        onChange={(e) =>
+                          updateBill(bill.id, {
+                            otherDescription: e.target.value,
+                          })
+                        }
+                        placeholder="Contoh: Iuran organisasi"
+                        className={inputClass}
+                      />
+
+                      <p className={hintClass}>
+                        Tuliskan jenis tagihan agar lebih mudah dikenali.
+                        Kategorinya tetap Lainnya.
+                      </p>
+                    </div>
+                  )}
+
+                  {categoriesError && (
+                    <p role="alert" className="mt-2 text-xs text-rose-700">
+                      {categoriesError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-4">

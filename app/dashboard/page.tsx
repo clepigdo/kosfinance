@@ -66,7 +66,9 @@ export default async function DashboardPage() {
       .eq("user_id", user.id),
     supabase
       .from("fixed_bills")
-      .select("id, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences")
+      .select(
+        "id, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences",
+      )
       .eq("user_id", user.id)
       .eq("is_active", true),
     supabase
@@ -93,26 +95,23 @@ export default async function DashboardPage() {
     (catsRes.data ?? []).map((c) => [c.id, c.name]),
   );
 
-  
-console.log("=== DASHBOARD CATEGORY DEBUG ===");
+  console.log("=== DASHBOARD CATEGORY DEBUG ===");
 
-console.log("User ID:", user.id);
+  console.log("User ID:", user.id);
 
-console.log("Categories error:", catsRes.error);
-console.log("Categories:", catsRes.data);
+  console.log("Categories error:", catsRes.error);
+  console.log("Categories:", catsRes.data);
 
-console.log("Cycle transactions error:", cycleRes.error);
-console.log("Cycle transactions:", cycleRes.data);
+  console.log("Cycle transactions error:", cycleRes.error);
+  console.log("Cycle transactions:", cycleRes.data);
 
-console.log("Recent transactions error:", recentRes.error);
-console.log("Recent transactions:", recentRes.data);
+  console.log("Recent transactions error:", recentRes.error);
+  console.log("Recent transactions:", recentRes.data);
 
-console.log(
-  "PayLater category:",
-  catName.get(
-    "d15e571e-48d9-42f0-a420-188c3f01f510"
-  )
-);
+  console.log(
+    "PayLater category:",
+    catName.get("d15e571e-48d9-42f0-a420-188c3f01f510"),
+  );
 
   const budgetBy = new Map(
     (budgetsRes.data ?? []).map((b) => [b.category_id, b]),
