@@ -140,6 +140,14 @@ export default async function BillsPage() {
     (item) => !item.isPaid && item.date >= monthStart && item.date < nextMonth,
   );
 
+  const priorityItems = occurrences.filter(
+    (item) => !item.isPaid && item.date < nextMonth,
+  );
+
+  const scheduledItems = occurrences.filter(
+    (item) => item.isPaid || item.date >= nextMonth,
+  );
+
   const overdueItems = occurrences.filter(
     (item) => !item.isPaid && item.date < today,
   );
@@ -157,10 +165,12 @@ export default async function BillsPage() {
 
   const groups = new Map<string, Occurrence[]>();
 
-  for (const item of occurrences) {
+  for (const item of scheduledItems) {
     const key = item.date.slice(0, 7);
+
     const existing = groups.get(key) ?? [];
     existing.push(item);
+
     groups.set(key, existing);
   }
 
@@ -206,7 +216,9 @@ export default async function BillsPage() {
         </div>
 
         <div className="rounded-2xl border border-amber-100 bg-white p-5">
-          <p className="text-sm text-neutral-500">Total sisa tagihan</p>
+          <p className="text-sm text-neutral-500">
+            Total kewajiban belum lunas dalam jadwal yang ditampilkan.
+          </p>
           <p className="mt-2 text-3xl font-bold">{rupiah(totalRemaining)}</p>
           <p className="mt-1 text-xs text-neutral-500">
             Semua kewajiban yang belum dibayar
@@ -224,13 +236,13 @@ export default async function BillsPage() {
           </p>
         </div>
 
-        {dueThisMonth.length === 0 ? (
+        {priorityItems.length === 0 ? (
           <div className="rounded-2xl border border-green-100 bg-white p-6 text-sm text-neutral-600">
             Tidak ada tagihan yang perlu dibayar pada bulan ini.
           </div>
         ) : (
           <div className="grid gap-4">
-            {dueThisMonth.map((item) => {
+            {priorityItems.map((item) => {
               const isOverdue = item.date < today;
 
               return (
@@ -269,6 +281,7 @@ export default async function BillsPage() {
                       <p className="text-2xl font-bold">
                         {rupiah(item.amount)}
                       </p>
+
                       {!item.isPaid && (
                         <PayBillButton
                           billId={item.billId}
@@ -289,16 +302,15 @@ export default async function BillsPage() {
       {/* Semua jadwal */}
       <section className="space-y-5">
         <div>
-          <h2 className="text-lg font-semibold">Semua jadwal tagihan</h2>
+          <h2 className="text-lg font-semibold">Jadwal Lainnya</h2>
           <p className="text-sm text-neutral-600">
-            Semua cicilan dan tagihan ditampilkan per bulan agar lebih mudah
-            dipantau.
+            Lihat cicilan mendatang dan pembayaran yang sudah lunas.
           </p>
         </div>
 
-        {occurrences.length === 0 ? (
+        {scheduledItems.length === 0 ? (
           <div className="rounded-2xl border border-green-100 bg-white p-6 text-sm text-neutral-600">
-            Belum ada tagihan terjadwal.
+            Belum ada jadwal lain untuk ditampilkan.
           </div>
         ) : (
           Array.from(groups.entries()).map(([month, items]) => {
@@ -389,6 +401,7 @@ export default async function BillsPage() {
                           <p className="text-lg font-semibold">
                             {rupiah(item.amount)}
                           </p>
+
                           {!item.isPaid && (
                             <PayBillButton
                               billId={item.billId}

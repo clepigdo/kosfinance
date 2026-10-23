@@ -467,13 +467,19 @@ export default function DashboardView({ data }: { data: DashboardData }) {
           label="Pengeluaran siklus ini"
           value={rupiah(data.spentThisCycle)}
         />
+
         <Stat
           Icon={CalendarDays}
           tile="bg-sky-100 text-sky-700"
-          label="Rata-rata per hari"
+          label="Rata-rata belanja harian"
           value={rupiah(data.avgDaily)}
-          hint="7 hari terakhir"
+          hint={
+            data.avgDaily === 0
+              ? "Belum ada belanja harian tercatat"
+              : "7 hari terakhir · Tidak termasuk tagihan"
+          }
         />
+
         <Stat
           Icon={CalendarClock}
           tile="bg-amber-100 text-amber-700"

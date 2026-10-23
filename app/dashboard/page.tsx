@@ -9,8 +9,7 @@ import {
 } from "@/lib/finance";
 
 // Kategori yang tidak dihitung ke rata-rata belanja harian
-// (sewa kos itu tagihan tetap, bukan belanja harian).
-const EXCLUDED_FROM_AVG = ["Kos"];
+
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -78,7 +77,7 @@ export default async function DashboardPage() {
       .gte("due_date", cycleStart),
     supabase
       .from("transactions")
-      .select("type, amount, category_id, occurred_on")
+      .select("id, type, amount, category_id, occurred_on")
       .eq("user_id", user.id)
       .gte("occurred_on", cycleStart)
       .lte("occurred_on", today),
@@ -90,6 +89,20 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
+
+  const { data: paidTransactions, error: paidTransactionsError } =
+    await supabase
+      .from("bill_payments")
+      .select("transaction_id")
+      .eq("user_id", user.id);
+
+  if (paidTransactionsError) {
+    throw new Error("Gagal membaca data pembayaran tagihan.");
+  }
+
+  const billTransactionIds = new Set(
+    (paidTransactions ?? []).map((payment) => payment.transaction_id),
+  );
 
   const catName = new Map<string, string>(
     (catsRes.data ?? []).map((c) => [c.id, c.name]),
@@ -123,7 +136,7 @@ export default async function DashboardPage() {
       amount: Number(t.amount),
       occurred_on: t.occurred_on as string,
       category_id: t.category_id as string | null,
-      excluded: EXCLUDED_FROM_AVG.includes(catName.get(t.category_id) ?? ""),
+      excluded: billTransactionIds.has(t.id),
     }));
   const todayExpenses = expenses
     .filter((e) => e.occurred_on === today)
@@ -140,8 +153,11 @@ export default async function DashboardPage() {
 
   const summary = computeSummary({
     today,
-    balance: balanceAtStartOfToday,
-    plan: { last: cycleStart, next: plan.next_income_date },
+    balance: currentBalance,
+    plan: {
+      last: cycleStart,
+      next: plan.next_income_date,
+    },
     bills: (billsRes.data ?? []).map((b) => ({
       ...b,
       amount: Number(b.amount),
@@ -182,7 +198,7 @@ export default async function DashboardPage() {
     name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
     categoryPeriodLabel: `${shortDate(cycleStart)} – ${shortDate(today)}`,
     balance: Number(balanceRes.data?.balance ?? 0),
-    safePerDay: Math.max(summary.safePerDay - todayExpenses, 0),
+    safePerDay: summary.safePerDay,
     cycleDay: summary.cycleDay,
     cycleTotalDays: summary.cycleTotalDays,
     daysLeft: summary.daysLeft,
