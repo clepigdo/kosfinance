@@ -27,7 +27,7 @@ type Occurrence = {
   date: string;
   isPaid: boolean;
   scheduleType: ScheduleType;
-  otherDescription: string | null
+  otherDescription: string | null;
   installment?: number;
   installmentTotal?: number;
 };
@@ -243,19 +243,10 @@ export default async function BillsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-semibold">{item.name}</h3>
 
-                        <div>
-                          <h3 className="text-lg font-semibold">{item.name}</h3>
-
-                          {item.otherDescription && (
-                            <p className="mt-1 text-xs text-neutral-500">
-                              Keterangan: {item.otherDescription}
-                            </p>
-                          )}
-                        </div>
-
                         <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                           {scheduleLabel(item.scheduleType)}
                         </span>
+
                         {item.installment && (
                           <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                             Cicilan {item.installment}/{item.installmentTotal}
@@ -263,24 +254,14 @@ export default async function BillsPage() {
                         )}
                       </div>
 
+                      {item.otherDescription && (
+                        <p className="text-sm text-neutral-500">
+                          {item.otherDescription}
+                        </p>
+                      )}
+
                       <p className="text-sm text-neutral-500">
                         Jatuh tempo: {shortDate(item.date)}
-                      </p>
-
-                      <p
-                        className={`text-xs font-medium ${
-                          item.isPaid
-                            ? "text-green-700"
-                            : isOverdue
-                              ? "text-rose-700"
-                              : "text-amber-700"
-                        }`}
-                      >
-                        {item.isPaid
-                          ? "Lunas"
-                          : isOverdue
-                            ? "Lewat jatuh tempo"
-                            : "Belum dibayar"}
                       </p>
                     </div>
 
@@ -361,37 +342,34 @@ export default async function BillsPage() {
                         key={item.id}
                         className="flex flex-col gap-3 rounded-xl border border-neutral-200 p-4 md:flex-row md:items-center md:justify-between"
                       >
-                        <div className="space-y-1">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold">{item.name}</p>
 
-                            <div>
-                              <p className="font-semibold">{item.name}</p>
-
-                              {item.otherDescription && (
-                                <p className="mt-1 text-xs text-neutral-500">
-                                  Keterangan: {item.otherDescription}
-                                </p>
-                              )}
-                            </div>
-
-                            <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700">
+                            <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs">
                               {scheduleLabel(item.scheduleType)}
                             </span>
+
                             {item.installment && (
-                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
+                              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
                                 Cicilan {item.installment}/
                                 {item.installmentTotal}
                               </span>
                             )}
                           </div>
 
+                          {item.otherDescription && (
+                            <p className="text-sm text-neutral-500">
+                              {item.otherDescription}
+                            </p>
+                          )}
+
                           <p className="text-sm text-neutral-500">
-                            {shortDate(item.date)}
+                            Jatuh tempo: {shortDate(item.date)}
                           </p>
 
                           <p
-                            className={`text-xs font-medium ${
+                            className={`text-xs ${
                               item.isPaid
                                 ? "text-green-700"
                                 : isOverdue
