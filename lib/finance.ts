@@ -152,10 +152,25 @@ export function computeSummary(i: SummaryInput) {
   );
 
   // Tagihan yang jatuh tempo di siklus ini dan belum dibayar
+
+  // Cadangkan tagihan yang belum lunas sebelum kiriman berikutnya.
+  // Tagihan sekali bayar dan cicilan terbatas dapat memiliki
+  // tunggakan dari siklus sebelumnya.
   let unpaidBills = 0;
+
   for (const b of i.bills) {
-    for (const d of dueDates(b, plan.last, plan.next)) {
-      if (!i.paid.has(`${b.id}|${d}`)) unpaidBills += b.amount;
+    const type = b.schedule_type ?? "ongoing";
+
+    let rangeStart = plan.last;
+
+    if ((type === "once" || type === "limited") && b.start_date) {
+      rangeStart = b.start_date;
+    }
+
+    for (const d of dueDates(b, rangeStart, plan.next)) {
+      if (!i.paid.has(`${b.id}|${d}`)) {
+        unpaidBills += b.amount;
+      }
     }
   }
 

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import {
   addDays,
+  daysBetween,
   dueDates,
   shortDate,
   todayISO,
@@ -71,6 +72,22 @@ function scheduleLabel(type: ScheduleType) {
   if (type === "once") return "Sekali bayar";
   if (type === "limited") return "Cicilan";
   return "Rutin";
+}
+
+function dueDateLabel(dueDate: string, today: string, isPaid: boolean) {
+  if (isPaid) return null;
+
+  const diff = daysBetween(today, dueDate);
+
+  if (diff < 0) {
+    return `Terlambat ${Math.abs(diff)} hari`;
+  }
+
+  if (diff === 0) {
+    return "Jatuh tempo hari ini";
+  }
+
+  return `Jatuh tempo dalam ${diff} hari`;
 }
 
 export default async function BillsPage() {
@@ -275,6 +292,20 @@ export default async function BillsPage() {
                       <p className="text-sm text-neutral-500">
                         Jatuh tempo: {shortDate(item.date)}
                       </p>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                          Belum lunas
+                        </span>
+
+                        <span
+                          className={`text-xs ${
+                            isOverdue ? "text-rose-700" : "text-neutral-500"
+                          }`}
+                        >
+                          {dueDateLabel(item.date, today, item.isPaid)}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="text-left md:text-right">
@@ -380,21 +411,29 @@ export default async function BillsPage() {
                             Jatuh tempo: {shortDate(item.date)}
                           </p>
 
-                          <p
-                            className={`text-xs ${
-                              item.isPaid
-                                ? "text-green-700"
-                                : isOverdue
-                                  ? "text-rose-700"
-                                  : "text-amber-700"
-                            }`}
-                          >
-                            {item.isPaid
-                              ? "Lunas"
-                              : isOverdue
-                                ? "Lewat jatuh tempo"
-                                : "Belum dibayar"}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                item.isPaid
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {item.isPaid ? "Lunas" : "Belum lunas"}
+                            </span>
+
+                            {!item.isPaid && (
+                              <span
+                                className={`text-xs ${
+                                  isOverdue
+                                    ? "text-rose-700"
+                                    : "text-neutral-500"
+                                }`}
+                              >
+                                {dueDateLabel(item.date, today, item.isPaid)}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="text-left md:text-right">
