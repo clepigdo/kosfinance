@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import {
   addDays,
@@ -9,6 +10,12 @@ import {
   type Bill,
 } from "@/lib/finance";
 import PayBillButton from "@/components/PayBillButton";
+import {
+  generateBillOccurrences,
+  splitBillOccurrences,
+  type ScheduledBill,
+} from "@/lib/bill-schedule";
+import BillMonthAccordion from "@/components/BillMonthAccordion";
 
 type ScheduleType = "once" | "limited" | "ongoing";
 
@@ -133,42 +140,21 @@ export default async function BillsPage() {
     (paymentsResult.data ?? []).map((p) => `${p.bill_id}|${p.due_date}`),
   );
 
-  const occurrences: Occurrence[] = ((billsResult.data ?? []) as BillRow[])
-    .flatMap((bill) => {
-      const dates = getDates(bill, monthStart);
-
-      return dates.map((date, index) => ({
-        id: `${bill.id}|${date}`,
-        billId: bill.id,
-        name: bill.name,
-        amount: Number(bill.amount),
-        otherDescription: bill.other_description,
-        date,
-        isPaid: paid.has(`${bill.id}|${date}`),
-        scheduleType: bill.schedule_type,
-        installment: bill.schedule_type === "limited" ? index + 1 : undefined,
-        installmentTotal:
-          bill.schedule_type === "limited"
-            ? (bill.total_occurrences ?? undefined)
-            : undefined,
-      }));
-    })
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const occurrences = generateBillOccurrences(
+    (billsResult.data ?? []) as ScheduledBill[],
+    paid,
+    monthStart,
+    addMonths(monthStart, 12),
+  );
 
   const dueThisMonth = occurrences.filter(
     (item) => !item.isPaid && item.date >= monthStart && item.date < nextMonth,
   );
 
-  const priorityItems = occurrences.filter(
-    (item) => !item.isPaid && item.date < nextMonth,
-  );
-
-  const scheduledItems = occurrences.filter(
-    (item) => item.isPaid || item.date >= nextMonth,
-  );
-
-  const overdueItems = occurrences.filter(
-    (item) => !item.isPaid && item.date < today,
+  const { priorityItems, scheduledItems, overdueItems } = splitBillOccurrences(
+    occurrences,
+    today,
+    nextMonth,
   );
 
   const totalThisMonth = dueThisMonth.reduce(
@@ -204,12 +190,21 @@ export default async function BillsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">Tagihan & Cicilan</h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          Lihat kewajiban bulan ini, tandai yang sudah lunas, dan pantau semua
-          jadwal cicilan ke depan.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Tagihan & Cicilan</h1>
+          <p className="mt-1 text-sm text-neutral-600">
+            Lihat kewajiban bulan ini, tandai yang sudah lunas, dan pantau
+            jadwal cicilan.
+          </p>
+        </div>
+
+        <Link
+          href="/bills/new"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white hover:bg-green-800"
+        >
+          + Tambah tagihan
+        </Link>
       </div>
 
       {/* Ringkasan */}
@@ -361,9 +356,12 @@ export default async function BillsPage() {
               .reduce((sum, item) => sum + item.amount, 0);
 
             return (
-              <div
+              <BillMonthAccordion
                 key={month}
-                className="rounded-2xl border border-green-100 bg-white p-5"
+                title={title}
+                count={items.length}
+                total={rupiah(groupTotal)}
+                defaultOpen={month === Array.from(groups.keys())[0]}
               >
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
@@ -456,7 +454,7 @@ export default async function BillsPage() {
                     );
                   })}
                 </div>
-              </div>
+              </BillMonthAccordion>
             );
           })
         )}
