@@ -119,4 +119,60 @@ describe("KosFinance - Finance Engine", () => {
     expect(result.unpaidBills).toBe(600_000);
     expect(result.safePerDay).toBe(225_000);
   });
+
+  it("mencadangkan tunggakan tagihan rutin dari bulan sebelumnya", () => {
+    const result = computeSummary({
+      today: "2026-10-25",
+      balance: 1_500_000,
+      plan: {
+        last: "2026-10-22",
+        next: "2026-10-27",
+      },
+      bills: [
+        {
+          id: "internet-rutin",
+          amount: 200_000,
+          frequency: "monthly",
+          due_day: 10,
+          due_weekday: null,
+          schedule_type: "ongoing",
+          start_date: "2026-09-10",
+          total_occurrences: null,
+        },
+      ],
+      paid: new Set(),
+      expenses: [],
+    });
+
+    expect(result.unpaidBills).toBe(400_000);
+    expect(result.safePerDay).toBe(550_000);
+  });
+
+  it("tidak mencadangkan tunggakan rutin yang sudah lunas", () => {
+    const result = computeSummary({
+      today: "2026-10-25",
+      balance: 1_300_000,
+      plan: {
+        last: "2026-10-22",
+        next: "2026-10-27",
+      },
+      bills: [
+        {
+          id: "internet-rutin",
+          amount: 200_000,
+          frequency: "monthly",
+          due_day: 10,
+          due_weekday: null,
+          schedule_type: "ongoing",
+          start_date: "2026-09-10",
+          total_occurrences: null,
+        },
+      ],
+      paid: new Set(["internet-rutin|2026-09-10"]),
+      expenses: [],
+    });
+
+    expect(result.unpaidBills).toBe(200_000);
+    expect(result.safePerDay).toBe(550_000);
+  });
 });

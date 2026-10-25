@@ -162,8 +162,7 @@ export function computeSummary(i: SummaryInput) {
     const type = b.schedule_type ?? "ongoing";
 
     let rangeStart = plan.last;
-
-    if ((type === "once" || type === "limited") && b.start_date) {
+    if (b.start_date) {
       rangeStart = b.start_date;
     }
 

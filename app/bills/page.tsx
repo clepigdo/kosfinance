@@ -57,7 +57,9 @@ function getDates(bill: BillRow, monthStart: string): string[] {
     return dueDates(bill, bill.start_date, end);
   }
 
-  return dueDates(bill, monthStart, addMonths(monthStart, 12));
+  const rangeStart = bill.start_date ?? monthStart;
+
+  return dueDates(bill, rangeStart, addMonths(monthStart, 12));
 }
 
 function rupiah(amount: number) {
@@ -371,7 +373,7 @@ export default async function BillsPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-neutral-500">Belum dibayar</p>
+                    <p className="text-sm text-neutral-500">Sisa belum lunas</p>
                     <p className="font-semibold">{rupiah(groupTotal)}</p>
                   </div>
                 </div>
