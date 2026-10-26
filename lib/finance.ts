@@ -44,6 +44,7 @@ export type Bill = {
   due_weekday: number | null;
   schedule_type?: "once" | "limited" | "ongoing";
   start_date?: string | null;
+  stop_from_date?: string | null;
   total_occurrences?: number | null;
 };
 
@@ -64,8 +65,15 @@ function monthlyOccurrence(first: string, index: number): string {
 }
 
 // Rentang tanggal menggunakan [start, end).
+
 export function dueDates(bill: Bill, start: string, end: string): string[] {
-  if (start >= end) return [];
+  // Jadwal tidak boleh mencapai tanggal penghentian.
+  const effectiveEnd =
+    bill.stop_from_date && bill.stop_from_date < end
+      ? bill.stop_from_date
+      : end;
+
+  if (start >= effectiveEnd) return [];
 
   const type = bill.schedule_type ?? "ongoing";
   const first = bill.start_date;
@@ -73,7 +81,7 @@ export function dueDates(bill: Bill, start: string, end: string): string[] {
   // 1. Tagihan sekali bayar
   if (type === "once") {
     if (!first) return [];
-    return first >= start && first < end ? [first] : [];
+    return first >= start && first < effectiveEnd ? [first] : [];
   }
 
   // 2. Tagihan dengan jumlah pembayaran terbatas
@@ -92,7 +100,7 @@ export function dueDates(bill: Bill, start: string, end: string): string[] {
           ? addDays(first, i * 7)
           : monthlyOccurrence(first, i);
 
-      if (date >= end) break;
+      if (date >= effectiveEnd) break;
       if (date >= start) result.push(date);
     }
 
@@ -104,7 +112,7 @@ export function dueDates(bill: Bill, start: string, end: string): string[] {
   const begin = first && first > start ? first : start;
 
   // Data lama tanpa start_date tetap didukung.
-  for (let date = begin; date < end; date = addDays(date, 1)) {
+  for (let date = begin; date < effectiveEnd; date = addDays(date, 1)) {
     if (bill.frequency === "weekly") {
       if (
         bill.due_weekday !== null &&

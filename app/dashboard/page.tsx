@@ -69,6 +69,7 @@ export default async function DashboardPage() {
         "id, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences",
       )
       .eq("user_id", user.id)
+      .or("is_active.eq.true,stop_from_date.not.is.null")
       .eq("is_active", true),
     supabase
       .from("bill_payments")

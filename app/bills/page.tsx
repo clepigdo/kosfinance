@@ -16,6 +16,7 @@ import {
   type ScheduledBill,
 } from "@/lib/bill-schedule";
 import BillMonthAccordion from "@/components/BillMonthAccordion";
+import DeactivateBillButton from "@/components/DeactivateBillButton";
 
 type ScheduleType = "once" | "limited" | "ongoing";
 
@@ -116,10 +117,10 @@ export default async function BillsPage() {
     supabase
       .from("fixed_bills")
       .select(
-        "id, name, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences, other_description",
+        "id, name, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences, other_description, stop_from_date, is_active",
       )
       .eq("user_id", user.id)
-      .eq("is_active", true)
+      .or("is_active.eq.true,stop_from_date.not.is.null")
       .order("created_at"),
 
     supabase
@@ -135,6 +136,13 @@ export default async function BillsPage() {
       </p>
     );
   }
+
+  const manageableBills = (billsResult.data ?? []).filter(
+    (bill) =>
+      bill.schedule_type === "ongoing" &&
+      bill.is_active === true &&
+      bill.stop_from_date === null,
+  );
 
   const paid = new Set(
     (paymentsResult.data ?? []).map((p) => `${p.bill_id}|${p.due_date}`),
@@ -363,18 +371,7 @@ export default async function BillsPage() {
                 total={rupiah(groupTotal)}
                 defaultOpen={month === Array.from(groups.keys())[0]}
               >
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold capitalize">{title}</h3>
-                    <p className="text-xs text-neutral-500">
-                      {items.length} jadwal pembayaran
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-neutral-500">Sisa belum lunas</p>
-                    <p className="font-semibold">{rupiah(groupTotal)}</p>
-                  </div>
-                </div>
+                
 
                 <div className="space-y-3">
                   {items.map((item) => {
@@ -457,6 +454,38 @@ export default async function BillsPage() {
               </BillMonthAccordion>
             );
           })
+        )}
+      </section>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Kelola Tagihan Rutin</h2>
+          <p className="text-sm text-neutral-600">
+            Hentikan jadwal tagihan yang sudah tidak diperlukan.
+          </p>
+        </div>
+
+        {manageableBills.length === 0 ? (
+          <p className="rounded-2xl border border-green-100 bg-white p-5 text-sm text-neutral-600">
+            Tidak ada tagihan rutin aktif untuk dikelola.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {manageableBills.map((bill) => (
+              <div
+                key={bill.id}
+                className="space-y-3 rounded-2xl border border-green-100 bg-white p-5"
+              >
+                <div>
+                  <h3 className="font-semibold">{bill.name}</h3>
+                  <p className="text-sm text-neutral-600">
+                    Tagihan rutin aktif
+                  </p>
+                </div>
+
+                <DeactivateBillButton billId={bill.id} billName={bill.name} />
+              </div>
+            ))}
+          </div>
         )}
       </section>
     </div>
