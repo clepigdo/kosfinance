@@ -10,7 +10,6 @@ import {
 
 // Kategori yang tidak dihitung ke rata-rata belanja harian
 
-
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -66,16 +65,15 @@ export default async function DashboardPage() {
     supabase
       .from("fixed_bills")
       .select(
-        "id, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences",
+        "id, amount, frequency, due_day, due_weekday, schedule_type, start_date, total_occurrences, stop_from_date",
       )
       .eq("user_id", user.id)
-      .or("is_active.eq.true,stop_from_date.not.is.null")
-      .eq("is_active", true),
+      .or("is_active.eq.true,stop_from_date.not.is.null"),
+
     supabase
       .from("bill_payments")
       .select("bill_id, due_date")
-      .eq("user_id", user.id)
-      .gte("due_date", cycleStart),
+      .eq("user_id", user.id),
     supabase
       .from("transactions")
       .select("id, type, amount, category_id, occurred_on")
@@ -107,24 +105,6 @@ export default async function DashboardPage() {
 
   const catName = new Map<string, string>(
     (catsRes.data ?? []).map((c) => [c.id, c.name]),
-  );
-
-  console.log("=== DASHBOARD CATEGORY DEBUG ===");
-
-  console.log("User ID:", user.id);
-
-  console.log("Categories error:", catsRes.error);
-  console.log("Categories:", catsRes.data);
-
-  console.log("Cycle transactions error:", cycleRes.error);
-  console.log("Cycle transactions:", cycleRes.data);
-
-  console.log("Recent transactions error:", recentRes.error);
-  console.log("Recent transactions:", recentRes.data);
-
-  console.log(
-    "PayLater category:",
-    catName.get("d15e571e-48d9-42f0-a420-188c3f01f510"),
   );
 
   const budgetBy = new Map(
