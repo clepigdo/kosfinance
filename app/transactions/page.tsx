@@ -23,6 +23,19 @@ export default async function TransactionsPage() {
       .limit(100),
   ]);
 
+  const { data: billPayments, error: billPaymentsError } = await supabase
+    .from("bill_payments")
+    .select("transaction_id")
+    .eq("user_id", user.id);
+
+  if (billPaymentsError) {
+    throw new Error("Gagal membaca relasi pembayaran tagihan.");
+  }
+
+  const billPaymentIds = new Set(
+    (billPayments ?? []).map((payment) => payment.transaction_id),
+  );
+
   const catName = new Map((cats ?? []).map((c) => [c.id, c.name]));
   const today = todayISO();
 
@@ -32,6 +45,7 @@ export default async function TransactionsPage() {
       id: t.id,
       title: t.note || category,
       category,
+      isBillPayment: billPaymentIds.has(t.id),
       dateLabel: relativeDay(t.occurred_on, today),
       amount: Number(t.amount),
       type: t.type,

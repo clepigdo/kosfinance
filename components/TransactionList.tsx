@@ -7,6 +7,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarDays,
+  Lock,
   Pencil,
   Plus,
   ReceiptText,
@@ -23,6 +24,7 @@ export type TransactionRow = {
   category: string;
   dateLabel: string;
   amount: number;
+  isBillPayment: boolean;
   type: "income" | "expense";
 };
 
@@ -225,39 +227,48 @@ export default function TransactionList({ rows }: { rows: TransactionRow[] }) {
                   </div>
 
                   {/* Aksi transaksi */}
-                  <div className="flex items-center justify-end gap-2 border-t border-neutral-100 bg-neutral-50/60 px-4 py-2.5 sm:px-5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPending({
-                          row: t,
-                          action: "edit",
-                        })
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-neutral-600 transition hover:bg-green-50 hover:text-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700"
-                      aria-label={`Ubah transaksi ${t.title}`}
-                    >
-                      <Pencil size={14} />
-                      Ubah
-                    </button>
+                  {!t.isBillPayment ? (
+                    <div className="flex items-center justify-end gap-2 border-t border-neutral-100 bg-neutral-50/60 px-4 py-2.5 sm:px-5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPending({
+                            row: t,
+                            action: "edit",
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-neutral-600 transition hover:bg-green-50 hover:text-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700"
+                        aria-label={`Ubah transaksi ${t.title}`}
+                      >
+                        <Pencil size={14} />
+                        Ubah
+                      </button>
 
-                    <span className="h-4 w-px bg-neutral-200" />
+                      <span className="h-4 w-px bg-neutral-200" />
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPending({
-                          row: t,
-                          action: "delete",
-                        })
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-600"
-                      aria-label={`Hapus transaksi ${t.title}`}
-                    >
-                      <Trash2 size={14} />
-                      Hapus
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPending({
+                            row: t,
+                            action: "delete",
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+                        aria-label={`Hapus transaksi ${t.title}`}
+                      >
+                        <Trash2 size={14} />
+                        Hapus
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end border-t border-neutral-100 bg-neutral-50/60 px-4 py-3 sm:px-5">
+                      <span className="inline-flex items-center gap-2 text-xs font-medium text-neutral-500">
+                        <Lock size={14} />
+                        Pembayaran tagihan · Terkunci
+                      </span>
+                    </div>
+                  )}
                 </li>
               );
             })}
