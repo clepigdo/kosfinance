@@ -32,6 +32,21 @@ export default async function EditTransactionPage({
 
   if (!tx) notFound();
 
+  const { data: linkedPayment, error: paymentError } = await supabase
+    .from("bill_payments")
+    .select("transaction_id")
+    .eq("user_id", user.id)
+    .eq("transaction_id", tx.id)
+    .maybeSingle();
+
+  if (paymentError) {
+    throw new Error("Gagal memverifikasi status transaksi.");
+  }
+
+  if (linkedPayment) {
+    redirect("/transactions");
+  }
+
   return (
     <TransactionForm
       categories={categories ?? []}
