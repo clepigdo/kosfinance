@@ -114,21 +114,36 @@ export default function TransactionForm({
       occurred_on: date,
     };
 
-    const { error } = isEdit
+    const { data, error } = isEdit
       ? await supabase
           .from("transactions")
           .update(fields)
           .eq("id", initial!.id)
           .eq("user_id", userId)
+          .select("id")
       : await supabase
           .from("transactions")
-          .insert({ ...fields, user_id: userId, source: "manual" });
+          .insert({
+            ...fields,
+            user_id: userId,
+            source: "manual",
+          })
+          .select("id");
 
     if (error) {
       setError(error.message);
       setLoading(false);
       return;
     }
+
+    if (!data || data.length !== 1) {
+      setError(
+        "Transaksi tidak berhasil disimpan. Periksa izin database atau coba lagi.",
+      );
+      setLoading(false);
+      return;
+    }
+
     finish();
   };
 
