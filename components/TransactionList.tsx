@@ -90,13 +90,22 @@ export default function TransactionList({ rows }: { rows: TransactionRow[] }) {
         throw new Error("Sesi login berakhir. Silakan login kembali.");
       }
 
-      const { error: deleteError } = await supabase
+      const { data: deletedRows, error: deleteError } = await supabase
         .from("transactions")
         .delete()
         .eq("id", pending.row.id)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .select("id");
 
-      if (deleteError) throw deleteError;
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      if (!deletedRows || deletedRows.length !== 1) {
+        throw new Error(
+          "Transaksi tidak berhasil dihapus. Data mungkin sudah berubah atau tidak tersedia.",
+        );
+      }
 
       setRemoved((prev) => {
         const next = new Set(prev);

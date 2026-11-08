@@ -11,6 +11,7 @@ import {
 // Kategori yang tidak dihitung ke rata-rata belanja harian
 
 export default async function DashboardPage() {
+  
   const supabase = await createClient();
   const {
     data: { user },
@@ -88,6 +89,27 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
+
+  const queryResults = [
+    { name: "saldo", result: balanceRes },
+    { name: "kategori", result: catsRes },
+    { name: "anggaran", result: budgetsRes },
+    { name: "tagihan", result: billsRes },
+    { name: "pembayaran tagihan", result: paymentsRes },
+    { name: "transaksi siklus", result: cycleRes },
+    { name: "transaksi terbaru", result: recentRes },
+  ];
+
+  const failedQuery = queryResults.find(({ result }) => result.error !== null);
+
+  if (failedQuery) {
+    console.error(
+      `[Dashboard] Gagal memuat ${failedQuery.name}:`,
+      failedQuery.result.error,
+    );
+
+    throw new Error("Gagal memuat data keuangan. Silakan coba lagi.");
+  }
 
   const { data: paidTransactions, error: paidTransactionsError } =
     await supabase

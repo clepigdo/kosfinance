@@ -151,11 +151,13 @@ export default function TransactionForm({
     if (!initial) return;
     setError("");
     setLoading(true);
-    const { error } = await supabase
+
+    const { data: deletedRows, error } = await supabase
       .from("transactions")
       .delete()
       .eq("id", initial.id)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("id");
 
     if (error) {
       setError(error.message);
@@ -163,6 +165,16 @@ export default function TransactionForm({
       setConfirmDelete(false);
       return;
     }
+
+    if (!deletedRows || deletedRows.length !== 1) {
+      setError(
+        "Transaksi tidak berhasil dihapus. Data mungkin sudah berubah atau tidak tersedia.",
+      );
+      setLoading(false);
+      setConfirmDelete(false);
+      return;
+    }
+
     finish();
   };
 
